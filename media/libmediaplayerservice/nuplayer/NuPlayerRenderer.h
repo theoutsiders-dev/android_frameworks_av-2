@@ -100,6 +100,7 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatMediaRenderingStart      = 'mdrd',
         kWhatAudioTearDown            = 'adTD',
         kWhatAudioOffloadPauseTimeout = 'aOPT',
+        kWhatVideoPrerollComplete     = 'vdpC',
     };
 
     enum AudioTearDownReason {
