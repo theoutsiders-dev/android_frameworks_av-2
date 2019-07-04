@@ -64,6 +64,9 @@
 
 namespace android {
 
+// maximum time to pause renderer to wait for video pre-roll
+static constexpr int64_t kDefaultVideoPrerollMaxUs = 2000000LL;
+
 struct NuPlayer::Action : public RefBase {
     Action() {}
 
@@ -1033,9 +1036,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 // Pause the renderer till video queue pre-rolls
-                if (mVideoDecoder != NULL && mAudioDecoder != NULL) {
+                if (!mPaused && mVideoDecoder != NULL && mAudioDecoder != NULL) {
                     ALOGI("NOTE: Pausing Renderer after decoders instantiated..");
                     mRenderer->pause();
+                    // wake up renderer if timed out
+                    sp<AMessage> msg = new AMessage(kWhatWakeupRendererFromPreroll, this);
+                    msg->post(kDefaultVideoPrerollMaxUs);
                 }
             }
 
@@ -1224,6 +1230,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             // Only video track has error. Audio track could be still good to play.
                             notifyListener(MEDIA_INFO, MEDIA_INFO_PLAY_VIDEO_ERROR, err);
                         }
+                        if (mRenderer != NULL && !mRenderer->isVideoPrerollCompleted()) {
+                            // wake up renderer immediately. it's still waiting for video preroll,
+                            // but video is already gone.
+                            sp<AMessage> msg = new AMessage(kWhatWakeupRendererFromPreroll, this);
+                            msg->post();
+                        }
                         mVideoDecoderError = true;
                     }
                 }
@@ -1302,7 +1314,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else if (what == Renderer::kWhatMediaRenderingStart) {
                 ALOGV("media rendering started");
                 notifyListener(MEDIA_STARTED, 0, 0);
-            } else if (what == Renderer::kWhatVideoPrerollComplete) {
+            } else if (!mPaused && what == Renderer::kWhatVideoPrerollComplete) {
+                // If NuPlayer is paused too, don't resume renderer. The pause may be called by
+                // client, wait for client to resume NuPlayer
                 ALOGI("NOTE: Video preroll complete.. resume renderer..");
                 mRenderer->resume();
             } else if (what == Renderer::kWhatAudioTearDown) {
@@ -1466,6 +1480,23 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             in.writeFloat(playbackRate);
 
             notifyListener(MEDIA_TIME_DISCONTINUITY, 0, 0, &in);
+            break;
+        }
+
+        case kWhatWakeupRendererFromPreroll:
+        {
+            // don't break pause if client requested renderer to pause too.
+            if (!mPaused && mRenderer != NULL && !mRenderer->isVideoPrerollCompleted()) {
+                ALOGI("NOTE: Video preroll timed out or video encounterred error, "
+                    "resume renderer and shutdown video decoder");
+                mRenderer->resume();
+                // Flush video decoder when preroll timeout, make playback audio only. If still keep
+                // video track, will see framedrop when video buffer coming.
+                mDeferredActions.push_back(
+                    new FlushDecoderAction(FLUSH_CMD_NONE /* audio */,
+                                        FLUSH_CMD_SHUTDOWN /*video */));
+                processDeferredActions();
+            }
             break;
         }
 

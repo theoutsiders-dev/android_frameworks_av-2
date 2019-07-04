@@ -74,6 +74,8 @@ struct NuPlayer::Renderer : public AHandler {
     status_t getCurrentPosition(int64_t *mediaUs);
     int64_t getVideoLateByUs();
 
+    bool isVideoPrerollCompleted() const;
+
     status_t openAudioSink(
             const sp<AMessage> &format,
             bool offloadOnly,

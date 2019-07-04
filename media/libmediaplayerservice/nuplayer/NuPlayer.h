@@ -158,6 +158,7 @@ private:
         kWhatPrepareDrm                 = 'pDrm',
         kWhatReleaseDrm                 = 'rDrm',
         kWhatMediaClockNotify           = 'mckN',
+        kWhatWakeupRendererFromPreroll  = 'wrFP',
     };
 
     wp<NuPlayerDriver> mDriver;
