@@ -2181,4 +2181,8 @@ bool NuPlayer::Renderer::isVideoPrerollCompleted() const {
     return mVideoSampleReceived;
 }
 
+bool NuPlayer::Renderer::isVideoSampleReceived() const {
+    return mVideoSampleReceived;
+}
+
 }  // namespace android
