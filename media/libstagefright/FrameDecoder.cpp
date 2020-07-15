@@ -515,11 +515,13 @@ sp<AMessage> VideoFrameDecoder::onGetFormatAndSeekOptions(
         videoFormat->setInt32("android._num-output-buffers", 1);
     }
 
-    if (isHDR(videoFormat)) {
+    // force surface-mode for all thumbnails
+    if (true /*isHDR(videoFormat)*/) {
         *window = initSurface();
         if (*window == NULL) {
             ALOGE("Failed to init surface control for HDR, fallback to non-hdr");
         } else {
+            ALOGI("using surface mode");
             videoFormat->setInt32("color-format", OMX_COLOR_FormatAndroidOpaque);
         }
     }
