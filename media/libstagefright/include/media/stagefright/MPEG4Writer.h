@@ -98,7 +98,6 @@ private:
     status_t mInitCheck;
     bool mIsRealTimeRecording;
     bool mUse4ByteNalLength;
-    bool mSkipExhaustiveNalSearch;
     bool mIsFileSizeLimitExplicitlyRequested;
     bool mPaused;
     bool mStarted;  // Writer thread + track threads started successfully
