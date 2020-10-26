@@ -539,7 +539,7 @@ protected:
          * Must be called before updateDevicesAndOutputs()
          * @param attr to be considered
          */
-        void checkOutputForAttributes(const audio_attributes_t &attr);
+        virtual void checkOutputForAttributes(const audio_attributes_t &attr);
 
         bool followsSameRouting(const audio_attributes_t &lAttr,
                                 const audio_attributes_t &rAttr) const;
@@ -685,10 +685,10 @@ protected:
                                             uint32_t delayMs);
         bool isDeviceOfModule(const sp<DeviceDescriptor>& devDesc, const char *moduleId) const;
 
-        status_t startSource(const sp<SwAudioOutputDescriptor>& outputDesc,
+        virtual status_t startSource(const sp<SwAudioOutputDescriptor>& outputDesc,
                              const sp<TrackClientDescriptor>& client,
                              uint32_t *delayMs);
-        status_t stopSource(const sp<SwAudioOutputDescriptor>& outputDesc,
+        virtual status_t stopSource(const sp<SwAudioOutputDescriptor>& outputDesc,
                             const sp<TrackClientDescriptor>& client);
 
         void clearAudioPatches(uid_t uid);
@@ -790,6 +790,7 @@ protected:
 private:
         void onNewAudioModulesAvailableInt(DeviceVector *newDevices);
 
+protected:
         // Add or remove AC3 DTS encodings based on user preferences.
         void modifySurroundFormats(const sp<DeviceDescriptor>& devDesc, FormatVector *formatsPtr);
         void modifySurroundChannelMasks(ChannelMaskSet *channelMasksPtr);
@@ -840,7 +841,7 @@ private:
                 std::vector<sp<AudioPolicyMix>> *secondaryMixes,
                 output_type_t *outputType);
         // internal method to return the output handle for the given device and format
-        audio_io_handle_t getOutputForDevices(
+        virtual audio_io_handle_t getOutputForDevices(
                 const DeviceVector &devices,
                 audio_session_t session,
                 audio_stream_type_t stream,
@@ -885,7 +886,7 @@ private:
         bool     isValidAttributes(const audio_attributes_t *paa);
 
         // Called by setDeviceConnectionState().
-        status_t setDeviceConnectionStateInt(audio_devices_t deviceType,
+        virtual status_t setDeviceConnectionStateInt(audio_devices_t deviceType,
                                              audio_policy_dev_state_t state,
                                              const char *device_address,
                                              const char *device_name,

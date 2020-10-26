@@ -627,9 +627,6 @@ ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const 
             (maxJpegResolution.width * maxJpegResolution.height);
     ssize_t jpegBufferSize = scaleFactor * (maxJpegBufferSize - kMinJpegBufferSize) +
             kMinJpegBufferSize;
-    if (jpegBufferSize > maxJpegBufferSize) {
-        jpegBufferSize = maxJpegBufferSize;
-    }
 
     return jpegBufferSize;
 }
@@ -1770,6 +1767,15 @@ status_t Camera3Device::waitUntilDrainedLocked(nsecs_t maxExpectedDuration) {
     if (res != OK) {
         SET_ERR_L("Error waiting for HAL to drain: %s (%d)", strerror(-res),
                 res);
+        if (res == TIMED_OUT) {
+            for (size_t i = 0; i < mInFlightMap.size(); i++) {
+                InFlightRequest r = mInFlightMap.valueAt(i);
+                ALOGE("%s: Timed out Frame %d Timestamp: %" PRId64 ",  metadata"
+                    " arrived: %s, buffers left: %d\n", __FUNCTION__, mInFlightMap.keyAt(i),
+                        r.shutterTimestamp, r.haveResultMetadata ? "true" : "false",
+                        r.numBuffersLeft);
+            }
+        }
     }
     return res;
 }
@@ -1833,10 +1839,12 @@ status_t Camera3Device::waitUntilStateThenRelock(bool active, nsecs_t timeout) {
 
     mStatusWaiters++;
 
+    bool signalPipelineDrain = false;
     if (!active && mUseHalBufManager) {
         auto streamIds = mOutputStreams.getStreamIds();
         if (mStatus == STATUS_ACTIVE) {
             mRequestThread->signalPipelineDrain(streamIds);
+            signalPipelineDrain = true;
         }
         mRequestBufferSM.onWaitUntilIdle();
     }
@@ -1865,6 +1873,10 @@ status_t Camera3Device::waitUntilStateThenRelock(bool active, nsecs_t timeout) {
             }
         }
     } while (!stateSeen);
+
+    if (signalPipelineDrain) {
+        mRequestThread->resetPipelineDrain();
+    }
 
     mStatusWaiters--;
 
@@ -3991,9 +4003,15 @@ status_t Camera3Device::RequestThread::clear(
 
 status_t Camera3Device::RequestThread::flush() {
     ATRACE_CALL();
+    status_t flush_status;
     Mutex::Autolock l(mFlushLock);
 
-    return mInterface->flush();
+    flush_status = mInterface->flush();
+    // We have completed flush, signal RequestThread::waitForNextRequestLocked() to no longer wait for
+    // new requests
+    mRequestSignal.signal();
+
+    return flush_status;
 }
 
 void Camera3Device::RequestThread::setPaused(bool paused) {
@@ -4800,6 +4818,12 @@ void Camera3Device::RequestThread::signalPipelineDrain(const std::vector<int>& s
     // If request thread is still busy, wait until paused then notify HAL
     mNotifyPipelineDrain = true;
     mStreamIdsToBeDrained = streamIds;
+}
+
+void Camera3Device::RequestThread::resetPipelineDrain() {
+    Mutex::Autolock pl(mPauseLock);
+    mNotifyPipelineDrain = false;
+    mStreamIdsToBeDrained.clear();
 }
 
 void Camera3Device::RequestThread::clearPreviousRequest() {
